@@ -307,7 +307,7 @@
     padding:16px;
     margin-bottom:16px;
   }
-  .ref-box h3{font-size:14px;margin-bottom:4px;}
+  .ref-box h3{font-size:14px;margin-bottom:6px;}
   .ref-box .sub{font-size:11.5px;color:var(--muted);margin-bottom:14px;line-height:1.4;}
   .ref-link{
     display:flex;gap:8px;
@@ -327,7 +327,7 @@
     font-weight:700;border-radius:6px;padding:0 14px;
     font-size:12px;cursor:pointer;
   }
-  .progress-label{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-top:4px;}
+  .progress-label{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;}
 
   .submit-btn{
     display:block;width:100%;
@@ -571,14 +571,15 @@
     <!-- STEP 2: referral -->
     <div class="step" id="stepRef">
       <div class="ref-box">
-        <h3>Referral Terminal</h3>
-        <div class="sub">FREE CLAIM IS STRICTLY RESTRICTED TO THE TOP 1000 TRADERS ON THE LEADERBOARD. SHIFT TIME PAYS OFF—START ROUTING ORDERS.</div>
+        <h3>Refer Friends</h3>
+        <div class="sub">ONLY TOP 1000 on the leaderboard ARE GETTING FREE CLAIM</div>
         <div class="ref-link">
           <input type="text" id="refLink" value="" readonly>
           <button type="button" id="copyRef">Copy Link</button>
         </div>
-        <div class="progress-label" id="refProgressLabel"><span id="refCountLabel">0 Referred</span><span>Rank Cutoff: Top 1000</span></div>
-        <div class="status-msg" id="refStatus"></div>
+        <div class="progress-label" id="refProgressLabel">
+          <span id="refCountLabel">0 Referred</span>
+        </div>
       </div>
     </div>
   </section>
@@ -741,18 +742,10 @@
     // Hide wallet field row if referrals >= 5
     const walletRow = document.getElementById('walletRow');
     if (walletRow) {
-      if (referrals >= 5) {
-        walletRow.style.display = 'none';
-      } else {
-        walletRow.style.display = 'flex';
-      }
+      walletRow.style.display = referrals >= 5 ? 'none' : 'flex';
     }
 
     document.getElementById('refCountLabel').textContent = `${referrals} Referred`;
-
-    const refStatus = document.getElementById('refStatus');
-    refStatus.textContent = "Route your link across desks. Only the Top 1000 referrers execute the free claim.";
-    refStatus.style.color = 'var(--muted)';
   }
 
   function startRefPolling(){
