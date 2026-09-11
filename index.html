@@ -575,7 +575,7 @@
     <div class="section-title">Airdrop<small>HOLD THE SEAT, GET PAID</small></div>
 
     <div class="panel bio-block">
-      <p>Every Desk NFT you hold qualifies for the $DESK airdrop. The more seats you hold, the higher your bonus tier — check your wallet below.</p>
+      <p>Every Desk NFT you hold qualifies for the $DESK airdrop.</p>
     </div>
 
     <div class="panel">
@@ -902,11 +902,9 @@
   wireCopyButton('copyRef', 'refLink');
 
   // airdrop checker
-  const AIRDROP_LIVE = true; // NFT contract deployed + edge function verified working
+  const SNAPSHOT_TAKEN = true; // snapshot written to airdrop_snapshot on 2026-09-11
 
   // Config: tune these once you know the real contract + economics.
-  const NFT_CHAIN = 'robinhood';      // OpenSea chain slug for Robinhood Chain
-  const NFT_CONTRACT = '0x6a2b6b538b4bfdf295f55d6e7ed7e7143b39d916'; // Desk NFT contract address
   const BASE_DESK_PER_NFT = 150000;   // baseline $DESK per NFT before tier bonus (30% of 1B ÷ 2000 public NFTs)
   const AIRDROP_TIERS = [
     { min: 1,  max: 1,        multiplier: 1,    label: 'Tier 1 (1 NFT)' },
@@ -933,8 +931,8 @@
         return;
       }
 
-      if (!AIRDROP_LIVE) {
-        status.textContent = "NFT contract isn't live yet. Check back once the collection is deployed.";
+      if (!SNAPSHOT_TAKEN) {
+        status.textContent = "Snapshot hasn't been taken yet. Check back once it's live.";
         return;
       }
 
@@ -943,14 +941,15 @@
 
       let nftCount = 0;
       try {
-        // This calls a Supabase Edge Function that proxies the OpenSea API server-side,
-        // so the OpenSea API key never has to sit in this front-end code.
-        // See /supabase/functions/check-nft-holdings for the function this hits.
-        const { data, error } = await sb.functions.invoke('check-nft-holdings', {
-          body: { wallet, chain: NFT_CHAIN, contract: NFT_CONTRACT }
-        });
+        // Reads the frozen snapshot table - no live OpenSea calls here,
+        // so this reflects holdings exactly as they were at snapshot time.
+        const { data, error } = await sb
+          .from('airdrop_snapshot')
+          .select('nft_count')
+          .eq('wallet_address', wallet.toLowerCase())
+          .maybeSingle();
         if (error) throw error;
-        nftCount = data?.count ?? 0;
+        nftCount = data?.nft_count ?? 0;
       } catch (e) {
         airdropBtn.disabled = false;
         status.textContent = "Couldn't check your wallet. Try again.";
