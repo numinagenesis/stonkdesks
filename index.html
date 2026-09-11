@@ -340,6 +340,8 @@
     margin-top:4px;
   }
   .status-msg{text-align:center;font-size:12px;margin-top:10px;min-height:16px;}
+  .pos{color:var(--green);font-weight:700;}
+  .neg{color:var(--red);font-weight:700;}
 
   /* token page */
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -472,6 +474,7 @@
   </div>
   <div class="splash-pills" id="splashPills">
     <button type="button" data-page="apply" class="pill-disabled">Apply WL</button>
+    <button type="button" data-page="airdrop">Airdrop</button>
     <button type="button" data-page="desk">$DESK</button>
   </div>
 </div>
@@ -495,6 +498,7 @@
     <div class="menu-btn" id="menuBtn"><span></span><span></span><span></span></div>
     <div class="nav-menu" id="navMenu">
       <button type="button" data-page="apply" class="active pill-disabled">Apply WL</button>
+      <button type="button" data-page="airdrop">Airdrop</button>
       <button type="button" data-page="desk">$DESK</button>
     </div>
   </div>
@@ -565,6 +569,34 @@
       <button type="button" class="dismiss" id="wlClosedDismiss">Got it</button>
     </div>
   </div>
+
+  <!-- AIRDROP CHECKER -->
+  <section class="page" data-name="airdrop">
+    <div class="section-title">Airdrop<small>HOLD THE SEAT, GET PAID</small></div>
+
+    <div class="panel bio-block">
+      <p>Every Desk NFT you hold qualifies for the $DESK airdrop. The more seats you hold, the higher your bonus tier — check your wallet below.</p>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <div class="label">Wallet address</div>
+        <input type="text" id="airdropWallet" placeholder="0x......">
+      </div>
+      <button type="button" class="step-continue" id="checkAirdrop">Check Eligibility</button>
+      <div class="status-msg" id="airdropStatus"></div>
+    </div>
+
+    <div class="panel full" id="airdropResult" style="display:none;">
+      <h3>Result</h3>
+      <ul class="tok">
+        <li><span>Status</span><span id="airdropEligible">—</span></li>
+        <li><span>Desk NFTs held</span><span id="airdropNftCount">0</span></li>
+        <li><span>Bonus tier</span><span id="airdropTier">—</span></li>
+        <li><span>Est. $DESK</span><span id="airdropTokens">0</span></li>
+      </ul>
+    </div>
+  </section>
 
   <!-- $DESK -->
   <section class="page" data-name="desk">
@@ -868,6 +900,89 @@
     });
   }
   wireCopyButton('copyRef', 'refLink');
+
+  // airdrop checker
+  const AIRDROP_LIVE = true; // NFT contract deployed + edge function verified working
+
+  // Config: tune these once you know the real contract + economics.
+  const NFT_CHAIN = 'robinhood';      // OpenSea chain slug for Robinhood Chain
+  const NFT_CONTRACT = '0x6a2b6b538b4bfdf295f55d6e7ed7e7143b39d916'; // Desk NFT contract address
+  const BASE_DESK_PER_NFT = 150000;   // baseline $DESK per NFT before tier bonus (30% of 1B ÷ 2000 public NFTs)
+  const AIRDROP_TIERS = [
+    { min: 1,  max: 1,        multiplier: 1,    label: 'Tier 1 (1 NFT)' },
+    { min: 2,  max: 4,        multiplier: 1.25, label: 'Tier 2 (2\u20134 NFTs)' },
+    { min: 5,  max: 9,        multiplier: 1.5,  label: 'Tier 3 (5\u20139 NFTs)' },
+    { min: 10, max: Infinity, multiplier: 2,    label: 'Tier 4 (10+ NFTs)' }
+  ];
+
+  function getTier(count){
+    return AIRDROP_TIERS.find(t => count >= t.min && count <= t.max) || null;
+  }
+
+  const airdropBtn = document.getElementById('checkAirdrop');
+  if (airdropBtn) {
+    airdropBtn.addEventListener('click', async () => {
+      const wallet = document.getElementById('airdropWallet').value.trim();
+      const status = document.getElementById('airdropStatus');
+      const result = document.getElementById('airdropResult');
+      result.style.display = 'none';
+      status.textContent = '';
+
+      if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+        status.textContent = 'Enter a valid EVM wallet address.';
+        return;
+      }
+
+      if (!AIRDROP_LIVE) {
+        status.textContent = "NFT contract isn't live yet. Check back once the collection is deployed.";
+        return;
+      }
+
+      status.textContent = 'Checking your wallet...';
+      airdropBtn.disabled = true;
+
+      let nftCount = 0;
+      try {
+        // This calls a Supabase Edge Function that proxies the OpenSea API server-side,
+        // so the OpenSea API key never has to sit in this front-end code.
+        // See /supabase/functions/check-nft-holdings for the function this hits.
+        const { data, error } = await sb.functions.invoke('check-nft-holdings', {
+          body: { wallet, chain: NFT_CHAIN, contract: NFT_CONTRACT }
+        });
+        if (error) throw error;
+        nftCount = data?.count ?? 0;
+      } catch (e) {
+        airdropBtn.disabled = false;
+        status.textContent = "Couldn't check your wallet. Try again.";
+        console.error('[airdrop]', e.message || e);
+        return;
+      }
+
+      airdropBtn.disabled = false;
+      status.textContent = '';
+
+      const eligibleEl = document.getElementById('airdropEligible');
+      document.getElementById('airdropNftCount').textContent = nftCount;
+
+      if (nftCount < 1) {
+        eligibleEl.textContent = 'NOT ELIGIBLE';
+        eligibleEl.className = 'neg';
+        document.getElementById('airdropTier').textContent = '—';
+        document.getElementById('airdropTokens').textContent = '0';
+        result.style.display = 'block';
+        return;
+      }
+
+      const tier = getTier(nftCount);
+      const tokens = nftCount * BASE_DESK_PER_NFT * (tier ? tier.multiplier : 1);
+
+      eligibleEl.textContent = 'ELIGIBLE';
+      eligibleEl.className = 'pos';
+      document.getElementById('airdropTier').textContent = tier ? tier.label : '—';
+      document.getElementById('airdropTokens').textContent = Math.round(tokens).toLocaleString();
+      result.style.display = 'block';
+    });
+  }
 
   if (new URLSearchParams(window.location.search).get('preflight') === '1') {
     runPreflight();
